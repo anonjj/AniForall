@@ -3,6 +3,17 @@ const router = express.Router();
 const animepahe = require('animepahe-api');
 const axios = require('axios');
 
+// Fix 2 — Cache successfully extracted m3u8 URLs for 20 minutes
+const streamCache = new Map();
+const CACHE_TTL = 20 * 60 * 1000; // 20 minutes
+
+function getCachedStream(key) {
+  const cached = streamCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data;
+  streamCache.delete(key);
+  return null;
+}
+
 // GET /api/stream/proxy?url=
 // Proxies .m3u8, .ts, and .key files with correct Referer to bypass CDN blocks
 router.get('/proxy', async (req, res, next) => {
@@ -15,6 +26,9 @@ router.get('/proxy', async (req, res, next) => {
     if (parsedUrl.hostname.includes('uwucdn.top') || parsedUrl.hostname.includes('kwik.')) {
       referer = 'https://kwik.cx/';
     }
+
+    // Problem 2: Pass Cloudflare cookies for kwik.cx to avoid rate limiting
+    const cookies = animepahe.Config.cookies;
 
     // Allow the browser to read this response (needed for AES-128 keys)
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,6 +44,7 @@ router.get('/proxy', async (req, res, next) => {
           'User-Agent': animepahe.Config.userAgent,
           'Referer': referer,
           'Origin': 'https://kwik.cx',
+          'Cookie': cookies,
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Connection': 'keep-alive',
@@ -77,7 +92,6 @@ router.get('/proxy', async (req, res, next) => {
       res.setHeader('Content-Type', 'application/x-mpegURL');
       return res.send(body);
     } else if (isKey) {
-      // ... rest same ...
       // Binary key file — must forward it with correct headers
       const response = await axios.get(url, {
         responseType: 'arraybuffer',
@@ -85,6 +99,7 @@ router.get('/proxy', async (req, res, next) => {
           'User-Agent': animepahe.Config.userAgent,
           'Referer': referer,
           'Origin': 'https://kwik.cx',
+          'Cookie': cookies,
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Connection': 'keep-alive',
@@ -100,6 +115,7 @@ router.get('/proxy', async (req, res, next) => {
           'User-Agent': animepahe.Config.userAgent,
           'Referer': referer,
           'Origin': 'https://kwik.cx',
+          'Cookie': cookies,
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Connection': 'keep-alive',
@@ -140,8 +156,27 @@ router.options('/proxy', (req, res) => {
 router.get('/:animeSession/:epSession', async (req, res, next) => {
   try {
     const { animeSession, epSession } = req.params;
+    const { quality = '1080' } = req.query; // Fix 3 — prioritized quality
+
+    const cacheKey = `${animeSession}-${epSession}-${quality}`;
+    const cached = getCachedStream(cacheKey);
+    if (cached) return res.json(cached);
+
     // Pass false to skip download links — faster response for streaming
     const data = await animepahe.getStreamingLinks(animeSession, epSession, false);
+    
+    // Fix 3 — only extract the 1 quality needed (highest prioritized)
+    if (data.sources && data.sources.length > 0) {
+      const preferred = data.sources.find(s => s.resolution === quality) || 
+                        data.sources.find(s => s.resolution === '720') ||
+                        data.sources[0];
+      
+      data.sources = [preferred];
+    }
+
+    // Cache the resolved links for 20 minutes
+    streamCache.set(cacheKey, { timestamp: Date.now(), data });
+
     res.json(data);
   } catch (err) {
     next(err);

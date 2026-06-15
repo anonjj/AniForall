@@ -116,19 +116,47 @@ function importLocalCookies() {
   return false;
 }
 
-// Initial import
+// Initialize local cookies
 importLocalCookies();
 
-// Override refreshCookies to prevent it from overwriting manual cookies if cookies.txt is present
-const originalRefresh = animepahe.Animepahe.refreshCookies.bind(animepahe.Animepahe);
-animepahe.Animepahe.refreshCookies = async function() {
-  const hasLocal = importLocalCookies();
-  if (hasLocal) {
-    console.log('Local cookies.txt is present. Skipping automated Playwright cookie refresh.');
-    return;
+// --- START MONKEY PATCHES ---
+// Problem 1: Serialize kwik.cx requests to avoid Cloudflare 1015 (Rate Limit)
+// Problem 3: Prevent Strategy 2 (Playwright) from firing aggressively on Strategy 1 failure
+const PlayModel = animepahe.models.PlayModel;
+const originalHybrid = PlayModel.processHybridOptimized;
+
+PlayModel.processHybridOptimized = async function(id, episodeId, items) {
+  console.log(`[MonkeyPatch] Serializing ${items.length} kwik.cx requests to avoid rate limits...`);
+  const results = [];
+  for (const item of items) {
+    try {
+      // Process one at a time with a significant delay
+      const sources = await animepahe.Animepahe.scrapeIframe(id, episodeId, item.url);
+      results.push(sources.map(s => ({
+        ...s,
+        embed: item.embed,
+        resolution: item.resolution,
+        isDub: item.isDub,
+        fanSub: item.fanSub,
+        isBD: item.isBD || false,
+      })));
+      // Wait 1 second between items
+      if (items.indexOf(item) < items.length - 1) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    } catch (err) {
+      console.error(`[MonkeyPatch] Failed ${item.resolution}:`, err.message);
+      results.push([]);
+    }
   }
-  return originalRefresh();
+  return results;
 };
+
+// Ensure sequential fallback doesn't make things worse
+PlayModel.processSequentialFallback = async () => []; 
+// --- END MONKEY PATCHES ---
+
+// Override refreshCookies ...
 
 const app = express();
 
