@@ -31,6 +31,13 @@ export default function useSearch() {
       try {
         const response = await searchAnime(query, page);
         setResults(response.data);
+
+        // Save to history if results found
+        if (response.data?.data?.length > 0) {
+          const history = JSON.parse(localStorage.getItem('search_history') || '[]');
+          const filtered = [query, ...history.filter(h => h.toLowerCase() !== query.toLowerCase())].slice(0, 10);
+          localStorage.setItem('search_history', JSON.stringify(filtered));
+        }
       } catch (err) {
         setError(err.response?.data?.error || err.message || 'Failed to search anime');
       } finally {

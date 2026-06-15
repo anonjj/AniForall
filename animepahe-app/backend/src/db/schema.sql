@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS progress (
   episode_num    REAL NOT NULL,
   ep_session     TEXT NOT NULL,
   anime_session  TEXT NOT NULL,
+  title          TEXT,               -- Added for Continue Watching shelf
+  poster         TEXT,               -- Added for Continue Watching shelf
   watched_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   position_sec   INTEGER DEFAULT 0,
   completed      INTEGER DEFAULT 0,   -- 0 = in progress, 1 = watched

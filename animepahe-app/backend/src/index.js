@@ -186,6 +186,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/search',    require('./routes/search'));
+app.use('/api/airing',    require('./routes/airing'));
 app.use('/api/series',    require('./routes/series'));
 app.use('/api/episodes',  require('./routes/episodes'));
 app.use('/api/stream',    require('./routes/stream'));

@@ -2,6 +2,27 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 
+// GET /api/progress/summary
+// Returns the most recent progress entry for each series, ordered by last watched
+router.get('/summary', (req, res, next) => {
+  try {
+    const list = db.prepare(`
+      SELECT p.*
+      FROM progress p
+      INNER JOIN (
+        SELECT series_session, MAX(watched_at) as max_watched
+        FROM progress
+        GROUP BY series_session
+      ) latest ON p.series_session = latest.series_session AND p.watched_at = latest.max_watched
+      ORDER BY p.watched_at DESC
+      LIMIT 12
+    `).all();
+    res.json(list);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/progress/:seriesSession
 router.get('/:seriesSession', (req, res, next) => {
   try {
@@ -22,6 +43,8 @@ router.post('/', (req, res, next) => {
       episode_num,
       ep_session,
       anime_session,
+      title,
+      poster,
       position_sec,
       completed
     } = req.body;
@@ -31,13 +54,15 @@ router.post('/', (req, res, next) => {
     }
 
     db.prepare(`
-      INSERT INTO progress (series_session, episode_num, ep_session, anime_session, position_sec, completed)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO progress (series_session, episode_num, ep_session, anime_session, title, poster, position_sec, completed)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(series_session, episode_num)
       DO UPDATE SET position_sec = excluded.position_sec,
                     completed    = excluded.completed,
-                    watched_at   = CURRENT_TIMESTAMP
-    `).run(series_session, episode_num, ep_session, anime_session, position_sec, completed);
+                    watched_at   = CURRENT_TIMESTAMP,
+                    title        = COALESCE(excluded.title, title),
+                    poster       = COALESCE(excluded.poster, poster)
+    `).run(series_session, episode_num, ep_session, anime_session, title, poster, position_sec, completed);
 
     res.json({ ok: true });
   } catch (err) {

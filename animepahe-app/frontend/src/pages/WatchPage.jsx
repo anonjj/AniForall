@@ -3,8 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import VideoPlayer from '../components/VideoPlayer';
 import ErrorState from '../components/ErrorState';
-import { getStream, getEpisodes, getProgress, updateProgress } from '../api/client';
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { getStream, getEpisodes, getProgress, updateProgress, getSeries } from '../api/client';
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, ForwardIcon } from '@heroicons/react/24/outline';
 
 export default function WatchPage() {
   const { animeSession, epSession, episodeNum } = useParams();
@@ -17,6 +17,7 @@ export default function WatchPage() {
   const [loadingStream, setLoadingStream] = useState(true);
   const [streamError, setStreamError] = useState(null);
 
+  const [seriesInfo, setSeriesInfo] = useState(null);
   const [startPosition, setStartPosition] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState(true);
 
@@ -63,11 +64,16 @@ export default function WatchPage() {
     lastSavedTimeRef.current = 0;
   }, [animeSession, epSession]);
 
-  // 2. Fetch watch progress to resume
+  // 2. Fetch watch progress and series info to resume
   useEffect(() => {
-    async function loadProgress() {
+    async function loadInitialData() {
       setLoadingProgress(true);
       try {
+        // Fetch series info for title/poster
+        const seriesRes = await getSeries(animeSession);
+        setSeriesInfo(seriesRes.data);
+
+        // Fetch progress
         const response = await getProgress(animeSession);
         const match = response.data.find(p => p.episode_num === currentEpNum);
         if (match && match.completed === 0 && match.position_sec > 5) {
@@ -76,14 +82,14 @@ export default function WatchPage() {
           setStartPosition(0);
         }
       } catch (err) {
-        console.error('Failed to load episode watch progress:', err);
+        console.error('Failed to load initial watch data:', err);
         setStartPosition(0);
       } finally {
         setLoadingProgress(false);
       }
     }
 
-    loadProgress();
+    loadInitialData();
   }, [animeSession, currentEpNum]);
 
   // 3. Fetch episodes list to identify adjacent prev/next navigation
@@ -181,6 +187,8 @@ export default function WatchPage() {
         episode_num: currentEpNum,
         ep_session: epSession,
         anime_session: epSession, // Store episode session in anime_session per Issue #4
+        title: seriesInfo?.title,
+        poster: seriesInfo?.poster,
         position_sec: position,
         completed: isCompleted ? 1 : 0
       });
@@ -189,13 +197,23 @@ export default function WatchPage() {
     } catch (err) {
       console.error('Failed to auto-save watch progress:', err);
     }
-  }, [animeSession, epSession, currentEpNum]);
+  }, [animeSession, epSession, currentEpNum, seriesInfo]);
 
   // Time update progress callback (throttled to every 10 seconds)
   const handleTimeUpdate = (currentTime, duration) => {
     const position = Math.floor(currentTime);
     if (position > 0 && position % 10 === 0 && position !== lastSavedTimeRef.current) {
       saveWatchProgress(currentTime, duration, false);
+    }
+  };
+
+  // Skip Intro Handler (85 seconds)
+  const handleSkipIntro = () => {
+    if (playerRef.current) {
+      const video = playerRef.current.getVideoElement?.() || playerRef.current;
+      const current = playerRef.current.getCurrentTime();
+      const newTime = current + 85;
+      if (video) video.currentTime = newTime;
     }
   };
 
@@ -260,31 +278,43 @@ export default function WatchPage() {
 
             {/* Video Controls Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 glass-panel rounded-2xl border border-white/5 shadow-xl">
-              {/* Quality Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Quality:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {streamSources.map((source) => (
-                    <button
-                      key={source.resolution}
-                      onClick={() => {
-                        // Save current progress before switching stream quality
-                        const currentTime = playerRef.current?.getCurrentTime() || 0;
-                        const duration = playerRef.current?.getDuration() || 0;
-                        setStartPosition(Math.floor(currentTime));
-                        saveWatchProgress(currentTime, duration, false);
-                        setSelectedSource(source);
-                      }}
-                      className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
-                        selectedSource.resolution === source.resolution
-                          ? 'bg-brandPurple/15 text-brandPurple border-brandPurple/30 shadow'
-                          : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {source.resolution}p
-                    </button>
-                  ))}
+              {/* Quality & Skip Buttons */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Quality:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {streamSources.map((source) => (
+                      <button
+                        key={source.resolution}
+                        onClick={() => {
+                          // Save current progress before switching stream quality
+                          const currentTime = playerRef.current?.getCurrentTime() || 0;
+                          const duration = playerRef.current?.getDuration() || 0;
+                          setStartPosition(Math.floor(currentTime));
+                          saveWatchProgress(currentTime, duration, false);
+                          setSelectedSource(source);
+                        }}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
+                          selectedSource.resolution === source.resolution
+                            ? 'bg-brandPurple/15 text-brandPurple border-brandPurple/30 shadow'
+                            : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {source.resolution}p
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                <div className="h-6 w-px bg-white/10 mx-1" />
+
+                <button
+                  onClick={handleSkipIntro}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-bold rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-zinc-300 hover:text-white transition-all group"
+                >
+                  <ForwardIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  Skip Intro (85s)
+                </button>
               </div>
 
               {/* Navigation controls */}
