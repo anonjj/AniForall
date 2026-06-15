@@ -127,7 +127,7 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
   }, [streamUrl]); // Re-run whenever quality URL changes
 
   return (
-    <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl">
+    <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black">
       {/*
         domRef is permanently bound to this element.
         Plyr wraps it but Plyr.destroy() restores it, so domRef stays valid

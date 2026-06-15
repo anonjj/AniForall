@@ -98,21 +98,22 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
 }
 
+/* Ensure controls stay inside and look modern */
 .plyr__controls {
-  padding: 10px 15px 15px !important;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8)) !important;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)) !important;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
 }
 
+/* Center play button enhancement */
 .plyr__control--overlaid {
-  background: rgba(139, 92, 246, 0.9) !important;
-  padding: 24px !important;
+  background: rgba(139, 92, 246, 0.8) !important;
 }
 
-.plyr__control--overlaid svg {
-  width: 32px !important;
-  height: 32px !important;
+.plyr--searching .plyr__control--overlaid {
+  display: none;
 }
 
 .plyr__progress__container {
-  padding-bottom: 4px;
+  margin-top: -4px;
 }
