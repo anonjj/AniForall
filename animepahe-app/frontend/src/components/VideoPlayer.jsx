@@ -139,50 +139,43 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       />
 
       {/* Center Controls Overlay */}
-      <div className={`absolute inset-0 z-20 flex items-center justify-center transition-all duration-500 pointer-events-none ${!isPlaying ? 'opacity-100 backdrop-blur-[2px] bg-black/10' : 'opacity-0 group-hover/player:opacity-100 group-hover/player:backdrop-blur-[1px] group-hover/player:bg-black/5'}`}>
-        <div className="flex items-center gap-6 sm:gap-10 p-8 rounded-[40px] glass-panel-heavy shadow-2xl scale-90 group-hover/player:scale-100 transition-transform duration-500 pointer-events-auto">
+      <div className={`absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${!isPlaying ? 'opacity-100' : 'opacity-0 group-hover/player:opacity-100'}`}>
+        <div className="flex items-center gap-8 sm:gap-12 pointer-events-auto">
           {/* Rewind */}
           <button 
             onClick={(e) => { e.stopPropagation(); plyrRef.current?.rewind(); }}
-            className="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all transform hover:-translate-x-1 active:scale-90 group/btn"
+            className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-black/20 hover:bg-brandPurple/80 text-white/90 transition-all active:scale-90"
             title="Rewind 10s"
           >
-            <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-none stroke-current stroke-[1.5] transition-transform group-hover/btn:-rotate-12">
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 fill-none stroke-current stroke-2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-              <text x="13" y="14" fontSize="5" fontWeight="900" textAnchor="middle" fill="currentColor" stroke="none" className="font-sans italic">10</text>
             </svg>
           </button>
 
-          {/* Play/Pause Button - Premium Glow Effect */}
-          <div className="relative group/playbtn">
-            {/* Glow backdrop */}
-            <div className="absolute inset-0 bg-brandPurple/30 blur-2xl rounded-full scale-110 opacity-0 group-hover/playbtn:opacity-100 transition-opacity duration-500" />
-            
-            <button 
-              onClick={(e) => { e.stopPropagation(); plyrRef.current?.togglePlay(); }}
-              className="relative w-20 h-20 sm:w-28 sm:h-28 flex items-center justify-center rounded-full bg-gradient-accent text-white shadow-2xl transition-all transform hover:scale-105 active:scale-95 z-10"
-            >
-              {isPlaying ? (
-                <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-14 sm:h-14 fill-current">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-14 sm:h-14 fill-current ml-2">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </button>
-          </div>
+          {/* Play/Pause Button */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); plyrRef.current?.togglePlay(); }}
+            className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-full bg-brandPurple/90 hover:bg-brandPurple text-white shadow-xl transition-all transform hover:scale-105 active:scale-95"
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-current">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
 
           {/* Forward */}
           <button 
             onClick={(e) => { e.stopPropagation(); plyrRef.current?.forward(); }}
-            className="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all transform hover:translate-x-1 active:scale-90 group/btn"
+            className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-black/20 hover:bg-brandPurple/80 text-white/90 transition-all active:scale-90"
             title="Forward 10s"
           >
-            <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-none stroke-current stroke-[1.5] transition-transform group-hover/btn:rotate-12">
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 fill-none stroke-current stroke-2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
-              <text x="11" y="14" fontSize="5" fontWeight="900" textAnchor="middle" fill="currentColor" stroke="none" className="font-sans italic">10</text>
             </svg>
           </button>
         </div>
