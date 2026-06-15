@@ -1,16 +1,16 @@
-import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import Hls from 'hls.js';
 import 'plyr/dist/plyr.css';
 
 const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded }, ref) => {
-  // domRef  → always points to the real <video> element in the JSX (never reassigned)
-  // mediaRef → points to Plyr's internal media element after init (may differ)
   const domRef   = useRef(null);
   const mediaRef = useRef(null);
   const hlsRef   = useRef(null);
   const plyrRef  = useRef(null);
   const startAtRef  = useRef(startAt);
   const onEndedRef  = useRef(onEnded);
+
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => { startAtRef.current = startAt; }, [startAt]);
   useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
@@ -20,6 +20,11 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
     getVideoElement: () => mediaRef.current,
     getCurrentTime: () => mediaRef.current?.currentTime ?? 0,
     getDuration:    () => mediaRef.current?.duration    ?? 0,
+    play:           () => plyrRef.current?.play(),
+    pause:          () => plyrRef.current?.pause(),
+    togglePlay:     () => plyrRef.current?.togglePlay(),
+    rewind:         () => plyrRef.current?.rewind(),
+    forward:        () => plyrRef.current?.forward(),
   }));
 
   useEffect(() => {
@@ -38,7 +43,7 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       // ── 1. Build Plyr around the original <video> ──────────────────────────
       const player = new Plyr(domVideo, {
         controls: [
-          'play-large',    // Big play button in center
+          // 'play-large' removed to use our custom center controls
           'play',          // Play/pause on bar
           'rewind',        // Rewind 10s
           'fast-forward',  // Fast forward 10s
@@ -59,8 +64,6 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       plyrRef.current = player;
 
       // ── 2. Get the live video element Plyr is actually rendering ───────────
-      // player.media is the element Plyr owns; it's the same as domVideo in
-      // most cases but guaranteed correct even when Plyr wraps it.
       const plyrVideo = player.media ?? domVideo;
       mediaRef.current = plyrVideo;
 
@@ -68,7 +71,6 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       if (Hls.isSupported()) {
         const hls = new Hls({
           maxMaxBufferLength: 30,
-          // Ensure TS segments with wrong MIME are still treated as video
           enableWorker: true,
         });
         hlsRef.current = hls;
@@ -94,13 +96,21 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       // ── 4. Progress / end events ───────────────────────────────────────────
       const handleTimeUpdate = () => onTimeUpdate?.(plyrVideo.currentTime, plyrVideo.duration);
       const handleEnded      = () => onEndedRef.current?.();
+      
+      const onPlay  = () => setIsPlaying(true);
+      const onPause = () => setIsPlaying(false);
+
       plyrVideo.addEventListener('timeupdate', handleTimeUpdate);
       plyrVideo.addEventListener('ended',      handleEnded);
+      plyrVideo.addEventListener('play',       onPlay);
+      plyrVideo.addEventListener('pause',      onPause);
 
       // Store event cleanup on the hls ref for teardown
       hlsRef._evCleanup = () => {
         plyrVideo.removeEventListener('timeupdate', handleTimeUpdate);
         plyrVideo.removeEventListener('ended',      handleEnded);
+        plyrVideo.removeEventListener('play',       onPlay);
+        plyrVideo.removeEventListener('pause',      onPause);
       };
     }
 
@@ -109,36 +119,69 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
     return () => {
       cancelled = true;
 
-      // Remove event listeners
       if (hlsRef._evCleanup) { hlsRef._evCleanup(); hlsRef._evCleanup = null; }
-
-      // Destroy HLS first so it stops feeding the detaching media element
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-
-      // Destroy Plyr — this restores domRef.current to the original <video>
-      // so the next setup() call gets a clean slate
       if (plyrRef.current) {
         try { plyrRef.current.destroy(); } catch (_) {}
         plyrRef.current = null;
       }
-
       mediaRef.current = null;
     };
-  }, [streamUrl]); // Re-run whenever quality URL changes
+  }, [streamUrl]);
 
   return (
-    <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black">
-      {/*
-        domRef is permanently bound to this element.
-        Plyr wraps it but Plyr.destroy() restores it, so domRef stays valid
-        across quality switches.
-      */}
+    <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black relative group/player">
       <video
         ref={domRef}
         className="w-full h-full"
         playsInline
         crossOrigin="anonymous"
       />
+
+      {/* Center Controls Overlay */}
+      <div className={`absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${!isPlaying ? 'opacity-100' : 'opacity-0 group-hover/player:opacity-100'}`}>
+        <div className="flex items-center gap-10 sm:gap-16 pointer-events-auto">
+          {/* Rewind */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); plyrRef.current?.rewind(); }}
+            className="p-3 sm:p-4 rounded-full bg-black/40 hover:bg-brandPurple/80 text-white transition-all transform hover:scale-110 group/btn"
+            title="Rewind 10s"
+          >
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-8 sm:h-8 fill-current">
+              <path d="M12.5 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.59 2.91-6.5 6.5-6.5S19 8.41 19 12s-2.91 6.5-6.5 6.5c-1.59 0-3.05-.57-4.18-1.51l-1.42 1.42C8.36 19.66 10.3 20.5 12.5 20.5c4.67 0 8.5-3.83 8.5-8.5S17.17 3 12.5 3z" />
+              <text x="12.5" y="15.5" fontSize="6" fontWeight="bold" textAnchor="middle" fill="currentColor">10</text>
+            </svg>
+          </button>
+
+          {/* Play/Pause */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); plyrRef.current?.togglePlay(); }}
+            className="p-6 sm:p-8 rounded-full bg-brandPurple/90 hover:bg-brandPurple text-white shadow-xl shadow-brandPurple/40 transition-all transform hover:scale-110"
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-current">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+
+          {/* Forward */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); plyrRef.current?.forward(); }}
+            className="p-3 sm:p-4 rounded-full bg-black/40 hover:bg-brandPurple/80 text-white transition-all transform hover:scale-110 group/btn"
+            title="Forward 10s"
+          >
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-8 sm:h-8 fill-current">
+              <path d="M11.5 3c4.97 0 9 4.03 9 9h2.5L19.11 15.89l-.07.14L15 12h3c0-3.59-2.91-6.5-6.5-6.5S5 8.41 5 12s2.91 6.5 6.5 6.5c1.59 0 3.05-.57 4.18-1.51l1.42 1.42C15.64 19.66 13.7 20.5 11.5 20.5c-4.67 0-8.5-3.83-8.5-8.5S6.83 3 11.5 3z" />
+              <text x="11.5" y="15.5" fontSize="6" fontWeight="bold" textAnchor="middle" fill="currentColor">10</text>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   );
 });
