@@ -1,0 +1,14 @@
+{
+  "name": "animepahe-app",
+  "version": "1.0.0",
+  "description": "Custom frontend and backend proxy for AnimePahe",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "backend": "npm run dev --prefix backend",
+    "frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
