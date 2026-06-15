@@ -38,11 +38,20 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       // ── 1. Build Plyr around the original <video> ──────────────────────────
       const player = new Plyr(domVideo, {
         controls: [
-          'play', 'rewind', 'fast-forward', 'progress',
-          'current-time', 'duration', 'mute', 'volume',
-          'settings', 'fullscreen',
+          'play-large',    // Big play button in center
+          'play',          // Play/pause on bar
+          'rewind',        // Rewind 10s
+          'fast-forward',  // Fast forward 10s
+          'progress',      // Scrubber
+          'current-time',  // Current time
+          'duration',      // Total time
+          'mute',          // Mute
+          'volume',        // Volume
+          'settings',      // Settings
+          'fullscreen',    // Fullscreen
         ],
-        settings: ['speed'],
+        seekTime: 10,
+        settings: ['speed', 'quality'],
         speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
         keyboard: { focused: true, global: true },
         autoplay: false,

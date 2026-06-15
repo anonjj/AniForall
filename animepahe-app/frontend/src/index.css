@@ -89,9 +89,30 @@
   --plyr-menu-background: rgba(21, 22, 30, 0.95);
   --plyr-menu-color: #f4f4f5;
   --plyr-tooltip-background: rgba(21, 22, 30, 0.9);
+  --plyr-control-radius: 8px;
 }
+
 .plyr--video {
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+.plyr__controls {
+  padding: 10px 15px 15px !important;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8)) !important;
+}
+
+.plyr__control--overlaid {
+  background: rgba(139, 92, 246, 0.9) !important;
+  padding: 24px !important;
+}
+
+.plyr__control--overlaid svg {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.plyr__progress__container {
+  padding-bottom: 4px;
 }
