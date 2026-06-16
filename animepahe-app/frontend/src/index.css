@@ -91,6 +91,53 @@
   background-size: 200% 100%;
 }
 
+/* Glow utilities */
+.glow-purple {
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.35), 0 0 8px rgba(139, 92, 246, 0.2);
+}
+
+.glow-amber {
+  box-shadow: 0 0 24px rgba(245, 165, 36, 0.35), 0 0 8px rgba(245, 165, 36, 0.2);
+}
+
+/* Near-invisible grain/noise overlay — removes flat-dashboard look */
+.bg-noise::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  z-index: 9999;
+}
+
+/* Display font for hero titles, big section headers, rank numerals */
+.text-display {
+  font-family: 'Bricolage Grotesque', 'Space Grotesk', sans-serif;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.75rem, 4vw, 3.5rem);
+  line-height: 1.1;
+}
+
+/* Disable motion for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-fadeIn,
+  .animate-pulseSlow,
+  .animate-pulse,
+  .animate-spin,
+  .animate-bounce,
+  .animate-ping {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Plyr Overrides for Dark Theme Integration */
 :root {
   --plyr-color-main: #8b5cf6; /* brandPurple */

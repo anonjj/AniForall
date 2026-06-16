@@ -13,9 +13,12 @@ export default {
         brandPurple: '#8b5cf6',
         brandCyan: '#06b6d4',
         brandPink: '#ec4899',
+        brandAmber: '#f5a524',
+        brandGlow: 'rgba(139,92,246,0.35)',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
+        display: ['Bricolage Grotesque', 'Space Grotesk', 'sans-serif'],
       },
       animation: {
         shimmer: 'shimmer 2s infinite linear',

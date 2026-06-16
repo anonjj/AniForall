@@ -18,6 +18,9 @@ export const getProgress    = (seriesSession) => client.get(`/progress/${seriesS
 export const getProgressSummary = ()          => client.get('/progress/summary');
 export const updateProgress = (data)          => client.post('/progress', data);
 
+export const getAnimeMetadata = (session, title) =>
+                                               client.get(`/metadata/${session}?title=${encodeURIComponent(title)}`);
+
 export const getCookieStatus  = ()       => client.get('/admin/cookies');
 export const injectCookies    = (cookies) => client.post('/admin/cookies', { cookies });
 export const clearCookies     = ()       => client.delete('/admin/cookies');

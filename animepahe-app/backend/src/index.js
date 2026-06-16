@@ -199,6 +199,7 @@ app.use('/api/image-proxy',  require('./routes/image'));
 app.use('/api/watchlist',    require('./routes/watchlist'));
 app.use('/api/progress',     require('./routes/progress'));
 app.use('/api/admin',        require('./routes/admin'));
+app.use('/api/metadata',     require('./routes/metadata'));
 
 // Global error handler
 app.use((err, req, res, next) => {
