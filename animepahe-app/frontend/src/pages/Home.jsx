@@ -7,33 +7,55 @@ import ErrorState from '../components/ErrorState';
 import EmptyState from '../components/EmptyState';
 import useSearch from '../hooks/useSearch';
 import { getWatchlist, getProgressSummary, getAiring } from '../api/client';
-import { BookmarkIcon, PlayCircleIcon, FireIcon, HistoryIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { BookmarkIcon, PlayCircleIcon, FireIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/solid';
+
+function proxyImg(url) {
+  if (!url) return null;
+  if (url.startsWith('/api/')) return url;
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
+function ShelfSection({ title, icon: Icon, iconColor, children, empty }) {
+  return (
+    <section className="space-y-4 animate-fadeIn">
+      <div className="flex items-center gap-2.5 pb-2.5 border-b border-white/5">
+        <Icon className={`w-5 h-5 ${iconColor}`} />
+        <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function Home() {
   const { query, setQuery, results, loading, error, retry } = useSearch();
-  
+
   const [watchlist, setWatchlist] = useState([]);
   const [continueWatching, setContinueWatching] = useState([]);
   const [airingAnime, setAiringAnime] = useState([]);
   const [searchHistory, setSearchHistory] = useState([]);
-  
   const [loadingShelves, setLoadingShelves] = useState(true);
+  const [shelfError, setShelfError] = useState(null);
 
-  // Load all shelves data on mount
   useEffect(() => {
     async function loadData() {
       setLoadingShelves(true);
+      setShelfError(null);
       try {
-        const [wlRes, progRes, airRes] = await Promise.all([
+        const [wlRes, progRes, airRes] = await Promise.allSettled([
           getWatchlist(),
           getProgressSummary(),
-          getAiring(1)
+          getAiring(1),
         ]);
-        
-        setWatchlist(wlRes.data);
-        setContinueWatching(progRes.data);
-        setAiringAnime(airRes.data.data || []);
-        
+
+        if (wlRes.status === 'fulfilled') setWatchlist(wlRes.value.data);
+        if (progRes.status === 'fulfilled') setContinueWatching(progRes.value.data);
+        if (airRes.status === 'fulfilled') {
+          setAiringAnime(airRes.value.data.data || []);
+        } else {
+          setShelfError(airRes.reason?.response?.data?.error || airRes.reason?.message || 'Failed to load latest releases');
+        }
+
         const history = JSON.parse(localStorage.getItem('search_history') || '[]');
         setSearchHistory(history);
       } catch (err) {
@@ -46,9 +68,9 @@ export default function Home() {
   }, []);
 
   const removeHistoryItem = (item) => {
-    const newHistory = searchHistory.filter(h => h !== item);
-    localStorage.setItem('search_history', JSON.stringify(newHistory));
-    setSearchHistory(newHistory);
+    const next = searchHistory.filter(h => h !== item);
+    localStorage.setItem('search_history', JSON.stringify(next));
+    setSearchHistory(next);
   };
 
   const clearHistory = () => {
@@ -56,40 +78,66 @@ export default function Home() {
     setSearchHistory([]);
   };
 
+  // Build hero background from first few airing items
+  const heroBg = airingAnime.slice(0, 5);
+
   return (
     <div className="min-h-screen bg-brandBg pb-16">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-6 md:px-12 mt-12 space-y-12">
-        {/* Hero Section */}
-        <section className="text-center space-y-4 max-w-2xl mx-auto pt-4 pb-2">
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white">
-            Your Anime, Your <span className="text-gradient">Way</span>
-          </h1>
-          <p className="text-zinc-400 text-base">
-            Search, stream, and track your collection without any clutter.
-          </p>
-        </section>
+      {/* ── Hero Banner ── */}
+      <section className="relative w-full h-[280px] md:h-[360px] overflow-hidden">
+        {/* Background collage */}
+        {heroBg.length > 0 ? (
+          <div className="absolute inset-0 flex">
+            {heroBg.map((anime, i) => (
+              <img
+                key={i}
+                src={proxyImg(anime.image)}
+                alt=""
+                className="flex-1 h-full object-cover"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-brandSurface to-brandBg" />
+        )}
 
-        {/* Search Bar & History */}
-        <section className="space-y-4">
-          <SearchBar query={query} setQuery={setQuery} loading={loading} />
-          
+        {/* Dark overlays */}
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="absolute inset-0 bg-gradient-to-b from-brandBg/10 via-transparent to-brandBg" />
+
+        {/* Hero content */}
+        <div className="relative z-10 h-full flex flex-col items-center justify-center px-6 gap-5">
+          <div className="text-center">
+            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">
+              Your Anime, Your <span className="text-gradient">Way</span>
+            </h1>
+            <p className="text-zinc-300 text-sm mt-2 drop-shadow">
+              Search, stream, and track your collection.
+            </p>
+          </div>
+
+          <div className="w-full max-w-2xl">
+            <SearchBar query={query} setQuery={setQuery} loading={loading} />
+          </div>
+
+          {/* Search history pills */}
           {!query && searchHistory.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 animate-fadeIn">
-              <div className="flex items-center gap-1.5 text-zinc-500 mr-2">
-                <HistoryIcon className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Recent:</span>
+            <div className="flex flex-wrap items-center justify-center gap-2 animate-fadeIn">
+              <div className="flex items-center gap-1.5 text-zinc-400">
+                <ClockIcon className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Recent:</span>
               </div>
-              {searchHistory.map((item) => (
-                <div key={item} className="group flex items-center bg-white/5 border border-white/5 rounded-full pl-3 pr-1 py-1 hover:border-brandPurple/30 transition-all">
-                  <button 
+              {searchHistory.slice(0, 6).map((item) => (
+                <div key={item} className="flex items-center bg-black/40 border border-white/10 rounded-full pl-3 pr-1 py-1 backdrop-blur-sm hover:border-brandPurple/40 transition-all">
+                  <button
                     onClick={() => setQuery(item)}
-                    className="text-xs font-medium text-zinc-300 hover:text-white mr-2"
+                    className="text-xs font-medium text-zinc-200 hover:text-white mr-1.5"
                   >
                     {item}
                   </button>
-                  <button 
+                  <button
                     onClick={() => removeHistoryItem(item)}
                     className="p-0.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-red-400 transition-colors"
                   >
@@ -97,126 +145,143 @@ export default function Home() {
                   </button>
                 </div>
               ))}
-              <button 
-                onClick={clearHistory}
-                className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 hover:text-zinc-400 ml-2"
-              >
-                Clear All
-              </button>
+              {searchHistory.length > 1 && (
+                <button
+                  onClick={clearHistory}
+                  className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           )}
-        </section>
+        </div>
+      </section>
 
+      {/* ── Content ── */}
+      <main className="max-w-7xl mx-auto px-6 md:px-12 mt-10 space-y-12">
         {!query.trim() ? (
-          /* Feature Shelves */
-          <div className="space-y-16 pt-4">
-            
+          <div className="space-y-12">
+
             {/* Continue Watching */}
             {continueWatching.length > 0 && (
-              <section className="space-y-6 animate-slideInLeft">
-                <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-                  <PlayCircleIcon className="w-5 h-5 text-brandPurple" />
-                  <h2 className="text-xl font-bold text-white tracking-tight">Continue Watching</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              <ShelfSection title="Continue Watching" icon={PlayCircleIcon} iconColor="text-brandPurple">
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
                   {continueWatching.map((item) => (
-                    <AnimeCard 
-                      key={item.series_session} 
-                      anime={{
-                        session: item.series_session,
-                        title: item.title,
-                        poster: item.poster,
-                        status: `Episode ${item.episode_num}`,
-                        episodes: null, type: null, year: null
-                      }} 
-                    />
+                    <div key={item.series_session} className="shrink-0 w-36 md:w-40">
+                      <AnimeCard
+                        anime={{
+                          session: item.series_session,
+                          title: item.title,
+                          poster: item.poster,
+                          status: `Episode ${item.episode_num}`,
+                          episodes: null,
+                          type: null,
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
-              </section>
+              </ShelfSection>
             )}
 
-            {/* Currently Airing */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-                <FireIcon className="w-5 h-5 text-orange-500" />
-                <h2 className="text-xl font-bold text-white tracking-tight">Latest Releases</h2>
-              </div>
-              {loadingShelves ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                  {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                  {airingAnime.map((anime) => (
-                    <AnimeCard 
-                      key={anime.anime_session} 
-                      anime={{
-                        session: anime.anime_session,
-                        title: anime.anime_title,
-                        poster: anime.snapshot, // airing api uses snapshot as poster sometimes
-                        status: `Episode ${anime.episode}`,
-                        episodes: null, type: null, year: null
-                      }} 
-                    />
+            {/* Latest Releases */}
+            <ShelfSection title="Latest Releases" icon={FireIcon} iconColor="text-orange-500">
+              {shelfError ? (
+                <ErrorState message={shelfError} onRetry={() => window.location.reload()} />
+              ) : loadingShelves ? (
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="shrink-0 w-36 md:w-40">
+                      <SkeletonCard />
+                    </div>
                   ))}
                 </div>
+              ) : airingAnime.length > 0 ? (
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
+                  {airingAnime.map((anime) => (
+                    <div key={anime.session} className="shrink-0 w-36 md:w-40">
+                      <AnimeCard
+                        anime={{
+                          session: anime.session,
+                          title: anime.title,
+                          poster: anime.image,
+                          status: `Episode ${anime.episode}`,
+                          episodes: null,
+                          type: null,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState message="No releases found" description="Could not load latest episode data." />
               )}
-            </section>
+            </ShelfSection>
 
             {/* Watchlist */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-                <BookmarkIcon className="w-5 h-5 text-brandPurple" />
-                <h2 className="text-xl font-bold text-white tracking-tight">Your Watchlist</h2>
-              </div>
-
+            <ShelfSection title="Your Watchlist" icon={BookmarkIcon} iconColor="text-brandPurple">
               {loadingShelves ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                  {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="shrink-0 w-36 md:w-40">
+                      <SkeletonCard />
+                    </div>
+                  ))}
                 </div>
               ) : watchlist.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
                   {watchlist.map((anime) => (
-                    <AnimeCard 
-                      key={anime.session} 
-                      anime={{
-                        session: anime.session,
-                        title: anime.title,
-                        poster: anime.poster,
-                        status: anime.status.replace(/_/g, ' '),
-                        episodes: null, type: null, year: null
-                      }} 
-                    />
+                    <div key={anime.session} className="shrink-0 w-36 md:w-40">
+                      <AnimeCard
+                        anime={{
+                          session: anime.session,
+                          title: anime.title,
+                          poster: anime.poster,
+                          status: anime.status.replace(/_/g, ' '),
+                          episodes: null,
+                          type: null,
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : (
-                <EmptyState 
-                  message="Your watchlist is empty" 
+                <EmptyState
+                  message="Your watchlist is empty"
                   description="Search for anime above and add them to your watchlist."
                   icon={BookmarkIcon}
                 />
               )}
-            </section>
+            </ShelfSection>
           </div>
         ) : (
           /* Search Results */
           <section className="space-y-6 min-h-[50vh]">
-            <div className="pb-2 border-b border-white/5 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white tracking-tight">
-                Search Results for <span className="text-gradient font-black">"{query}"</span>
+            <div className="pb-2.5 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Results for{' '}
+                <span className="text-gradient font-black">"{query}"</span>
               </h2>
-              <button onClick={() => setQuery('')} className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest">Clear</button>
+              <button
+                onClick={() => setQuery('')}
+                className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors"
+              >
+                Clear
+              </button>
             </div>
 
             {error ? (
               <ErrorState message={error} onRetry={retry} />
             ) : loading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {[...Array(12)].map((_, i) => <SkeletonCard key={i} />)}
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 md:gap-4">
+                {[...Array(14)].map((_, i) => <SkeletonCard key={i} />)}
               </div>
-            ) : results && results.data && results.data.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {results.data.map((anime) => <AnimeCard key={anime.session} anime={anime} />)}
+            ) : results?.data?.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 md:gap-4">
+                {results.data.map((anime) => (
+                  <AnimeCard key={anime.session} anime={anime} />
+                ))}
               </div>
             ) : (
               <EmptyState message="No results found" description="Try a different keyword." />
