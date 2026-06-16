@@ -13,12 +13,6 @@ import useAmbientColor from '../hooks/useAmbientColor';
 import { getWatchlist, getProgressSummary, getAiring } from '../api/client';
 import { BookmarkIcon, PlayCircleIcon, FireIcon, ClockIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/solid';
 
-function proxyImg(url) {
-  if (!url) return null;
-  if (url.startsWith('/api/')) return url;
-  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-}
-
 export default function Home() {
   const { query, setQuery, results, loading, error, retry } = useSearch();
 
@@ -30,7 +24,7 @@ export default function Home() {
   const [shelfError, setShelfError] = useState(null);
   const [activeHeroImage, setActiveHeroImage] = useState(null);
 
-  // Ambient bloom driven by the active hero image (same-origin via proxy = canvas-safe)
+  // Ambient bloom — same-origin proxy URL is canvas-safe
   const ambientColor = useAmbientColor(activeHeroImage);
 
   useEffect(() => {
@@ -81,82 +75,75 @@ export default function Home() {
   }, [airingAnime]);
 
   const cardWidth = 'shrink-0 w-36 md:w-40';
+  const isSearching = Boolean(query.trim());
 
   return (
-    <div className="min-h-screen bg-brandBg pb-16 bg-noise">
-      {/* Ambient bloom — fixed full-page color tint driven by active hero */}
+    // No bg-brandBg here — body provides it. Removing it lets the z-[-1] AmbientBackground show through.
+    <div className="min-h-screen pb-16 bg-noise">
+      {/* Ambient bloom — fixed, z-[-1], tints body behind all content */}
       <AmbientBackground color={ambientColor} />
 
       <Navbar />
 
-      {/* ── Hero Carousel ── */}
-      {!query.trim() && (
-        <>
-          {airingAnime.length > 0 ? (
-            <HeroCarousel
-              anime={airingAnime.slice(0, 5)}
-              onActiveImageChange={setActiveHeroImage}
-            />
-          ) : (
-            <div className="w-full h-[380px] md:h-[500px] bg-gradient-to-br from-brandSurface to-brandBg flex flex-col items-center justify-center gap-5 px-6">
-              <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg text-center">
-                Your Anime, Your <span className="text-gradient">Way</span>
-              </h1>
-              <p className="text-zinc-300 text-sm drop-shadow text-center">
-                Search, stream, and track your collection.
-              </p>
-              <div className="w-full max-w-2xl">
-                <SearchBar query={query} setQuery={setQuery} loading={loading} />
-              </div>
-            </div>
-          )}
-
-          {/* Search bar below hero */}
-          {airingAnime.length > 0 && (
-            <div className="max-w-2xl mx-auto px-6 -mt-6 relative z-10">
-              <SearchBar query={query} setQuery={setQuery} loading={loading} />
-            </div>
-          )}
-
-          {/* Search history pills */}
-          {!query && searchHistory.length > 0 && (
-            <div className="max-w-2xl mx-auto px-6 mt-3 flex flex-wrap items-center justify-center gap-2 animate-fadeIn">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <ClockIcon className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Recent:</span>
-              </div>
-              {searchHistory.slice(0, 6).map((item) => (
-                <div key={item} className="flex items-center bg-black/40 border border-white/10 rounded-full pl-3 pr-1 py-1 backdrop-blur-sm hover:border-brandPurple/40 transition-all">
-                  <button
-                    onClick={() => setQuery(item)}
-                    className="text-xs font-medium text-zinc-200 hover:text-white mr-1.5"
-                  >
-                    {item}
-                  </button>
-                  <button
-                    onClick={() => removeHistoryItem(item)}
-                    className="p-0.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-red-400 transition-colors"
-                  >
-                    <XMarkIcon className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              {searchHistory.length > 1 && (
-                <button
-                  onClick={clearHistory}
-                  className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-        </>
+      {/* ── Hero Carousel (hidden while searching) ── */}
+      {!isSearching && (
+        airingAnime.length > 0 ? (
+          <HeroCarousel
+            anime={airingAnime.slice(0, 5)}
+            onActiveImageChange={setActiveHeroImage}
+          />
+        ) : (
+          <div className="w-full h-[340px] md:h-[460px] bg-gradient-to-br from-brandSurface to-brandBg flex flex-col items-center justify-center gap-4 px-6">
+            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg text-center">
+              Your Anime, Your <span className="text-gradient">Way</span>
+            </h1>
+            <p className="text-zinc-400 text-sm text-center">Search, stream, and track your collection.</p>
+          </div>
+        )
       )}
 
-      {/* ── Content ── */}
+      {/* ── Search bar — always visible ── */}
+      <div className={`max-w-2xl mx-auto px-6 relative z-10 ${isSearching ? 'mt-6' : '-mt-6'}`}>
+        <SearchBar query={query} setQuery={setQuery} loading={loading} />
+      </div>
+
+      {/* Search history pills (non-search state only) */}
+      {!isSearching && searchHistory.length > 0 && (
+        <div className="max-w-2xl mx-auto px-6 mt-3 flex flex-wrap items-center justify-center gap-2 animate-fadeIn">
+          <div className="flex items-center gap-1.5 text-zinc-400">
+            <ClockIcon className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Recent:</span>
+          </div>
+          {searchHistory.slice(0, 6).map((item) => (
+            <div key={item} className="flex items-center bg-black/40 border border-white/10 rounded-full pl-3 pr-1 py-1 backdrop-blur-sm hover:border-brandPurple/40 transition-all">
+              <button
+                onClick={() => setQuery(item)}
+                className="text-xs font-medium text-zinc-200 hover:text-white mr-1.5"
+              >
+                {item}
+              </button>
+              <button
+                onClick={() => removeHistoryItem(item)}
+                className="p-0.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-red-400 transition-colors"
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {searchHistory.length > 1 && (
+            <button
+              onClick={clearHistory}
+              className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Main content ── */}
       <main className="max-w-7xl mx-auto px-6 md:px-12 mt-10 space-y-12">
-        {!query.trim() ? (
+        {!isSearching ? (
           <div className="space-y-12">
 
             {/* Continue Watching */}
