@@ -10,14 +10,22 @@ function proxyImg(url) {
   return `/api/image-proxy?url=${encodeURIComponent(url)}`;
 }
 
-export default function AnimeCard({ anime, rank }) {
+export default function AnimeCard({ anime, rank, onRemove }) {
   const { session, title, poster, image, snapshot, type, episodes, status } = anime;
   const displayPoster = proxyImg(poster || image || snapshot);
   const [hovered, setHovered] = useState(false);
 
+  const handleRemove = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onRemove) onRemove();
+  };
+
   const { metadata, ref } = useAnimeMetadata(session, title);
   const reducedMotion = useReducedMotion();
   const score = metadata?.score;
+  const anilistCover = metadata?.cover_image || null;
+  const [coverLoaded, setCoverLoaded] = useState(false);
   const genreList = metadata?.genres
     ? (Array.isArray(metadata.genres) ? metadata.genres : metadata.genres.split(',')).slice(0, 2)
     : [];
@@ -49,12 +57,24 @@ export default function AnimeCard({ anime, rank }) {
             : undefined,
         }}
       >
+        {/* Base: AnimePahe snapshot, shown until AniList cover loads */}
         <img
           src={displayPoster || 'https://placehold.co/300x450/15161e/ffffff?text=?'}
           alt={title}
           loading="lazy"
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
         />
+        {/* AniList vertical cover art — crossfades in once loaded */}
+        {anilistCover && (
+          <img
+            key={anilistCover}
+            src={anilistCover}
+            alt=""
+            aria-hidden="true"
+            onLoad={() => setCoverLoaded(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        )}
 
         {/* Resting gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -64,6 +84,20 @@ export default function AnimeCard({ anime, rank }) {
           <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] font-extrabold bg-red-600 text-white rounded-[3px] leading-none tracking-wider uppercase shadow z-10">
             {type.toUpperCase()}
           </span>
+        )}
+
+        {/* Remove button */}
+        {onRemove && (
+          <button
+            onClick={handleRemove}
+            className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-zinc-300 hover:text-white rounded-full backdrop-blur-sm shadow z-20 transition-colors duration-200 cursor-pointer"
+            title="Remove from Continue Watching"
+            aria-label="Remove from Continue Watching"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         )}
 
         {/* Rank numeral */}
