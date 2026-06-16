@@ -42,6 +42,12 @@ router.post('/cookies', async (req, res) => {
   try {
     await fs.mkdir(path.dirname(COOKIES_PATH), { recursive: true });
     await fs.writeFile(COOKIES_PATH, JSON.stringify(cookieData, null, 2));
+    
+    // Also inject into library immediately
+    const animepahe = require('animepahe-api');
+    const cookieHeader = parsed.map(c => `${c.name}=${c.value}`).join('; ');
+    animepahe.Config.setCookies(cookieHeader);
+
     res.json({ ok: true, injected: parsed.length });
   } catch (err) {
     res.status(500).json({ error: err.message });

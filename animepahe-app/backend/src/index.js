@@ -5,123 +5,128 @@ const fs = require('fs');
 const path = require('path');
 const animepahe = require('animepahe-api');
 
+// Prevent process from crashing on unhandled promise rejections (e.g. from background scraper routines)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection] at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err, origin) => {
+  console.error(`[Uncaught Exception] Caught exception: ${err}\nOrigin: ${origin}`);
+});
+
 let lastCookiesContent = '';
 
 function importLocalCookies() {
-  const paths = [
+  const jsonPath = path.join('/tmp', 'cookies.json');
+  const txtPaths = [
     path.join(__dirname, '../cookies.txt'),
     path.join(__dirname, 'cookies.txt'),
     path.join(process.cwd(), 'cookies.txt'),
     path.join(process.cwd(), 'backend/cookies.txt'),
     path.join(process.cwd(), 'backend/src/cookies.txt')
   ];
-  const txtPath = paths.find(p => fs.existsSync(p));
-  const jsonPath = path.join('/tmp', 'cookies.json');
+  const txtPath = txtPaths.find(p => fs.existsSync(p));
   
-  if (txtPath) {
-    try {
-      let rawCookies = fs.readFileSync(txtPath, 'utf8').trim();
-      if (rawCookies) {
-        if (rawCookies === lastCookiesContent) {
-          return true; // Already imported this version
-        }
-        lastCookiesContent = rawCookies;
-        
-        let parsedCookies = [];
+  try {
+    let latestCookies = null;
+    let source = '';
 
-        // Check if JSON format
-        if (rawCookies.startsWith('[') && rawCookies.endsWith(']')) {
-          try {
-            const list = JSON.parse(rawCookies);
-            if (Array.isArray(list)) {
-              parsedCookies = list.map(c => {
-                if (c && c.name && c.value !== undefined) {
-                  return { name: c.name, value: c.value };
-                }
-                return null;
-              }).filter(Boolean);
-            }
-          } catch (e) {
-            console.error('Failed to parse cookies.txt as JSON, trying other formats:', e.message);
+    // 1. Try loading from JSON (Manual injection via Admin Page)
+    if (fs.existsSync(jsonPath)) {
+      const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      if (jsonData && jsonData.cookies) {
+        latestCookies = jsonData.cookies;
+        source = 'cookies.json (Admin Page)';
+      }
+    }
+
+    // 2. Fallback to txt file if JSON is missing or if txt is newer
+    if (txtPath) {
+      const txtStat = fs.statSync(txtPath);
+      const jsonStat = fs.existsSync(jsonPath) ? fs.statSync(jsonPath) : { mtimeMs: 0 };
+
+      // If txt is newer than the last manual injection, use it
+      if (txtStat.mtimeMs > jsonStat.mtimeMs || !latestCookies) {
+        const rawCookies = fs.readFileSync(txtPath, 'utf8').trim();
+        if (rawCookies && rawCookies !== lastCookiesContent) {
+          lastCookiesContent = rawCookies;
+          let parsed = parseCookieString(rawCookies);
+          if (parsed.length > 0) {
+            latestCookies = parsed;
+            source = `cookies.txt (${path.basename(txtPath)})`;
           }
-        }
-
-        // Check if Netscape format (starts with comments or domain tabs)
-        if (parsedCookies.length === 0 && (rawCookies.includes('\t') || rawCookies.startsWith('#'))) {
-          const lines = rawCookies.split(/\r?\n/);
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('#')) continue;
-            const parts = trimmed.split('\t');
-            if (parts.length >= 7) {
-              const name = parts[5];
-              const value = parts[6];
-              parsedCookies.push({ name, value });
-            } else if (parts.length >= 2) {
-              const name = parts[parts.length - 2];
-              const value = parts[parts.length - 1];
-              if (name && value) {
-                parsedCookies.push({ name, value });
-              }
-            }
-          }
-        }
-
-        // Fallback to key-value string format (e.g. name=val; name2=val2)
-        if (parsedCookies.length === 0) {
-          // Remove surrounding quotes if present
-          if ((rawCookies.startsWith("'") && rawCookies.endsWith("'")) ||
-              (rawCookies.startsWith('"') && rawCookies.endsWith('"'))) {
-            rawCookies = rawCookies.slice(1, -1).trim();
-          }
-
-          // Strip "Cookie: " or "cookie: " prefix if present
-          if (rawCookies.toLowerCase().startsWith('cookie:')) {
-            rawCookies = rawCookies.substring(7).trim();
-          }
-
-          parsedCookies = rawCookies.split(';').map(part => {
-            const eqIndex = part.indexOf('=');
-            if (eqIndex === -1) return null;
-            return {
-              name: part.substring(0, eqIndex).trim(),
-              value: part.substring(eqIndex + 1).trim()
-            };
-          }).filter(Boolean);
-        }
-
-        if (parsedCookies.length > 0) {
-          const cookieData = {
-            timestamp: Date.now(),
-            cookies: parsedCookies
-          };
-
-          fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-          fs.writeFileSync(jsonPath, JSON.stringify(cookieData, null, 2));
-          
-          // Inject into library
-          const cookieHeader = parsedCookies.map(c => `${c.name}=${c.value}`).join('; ');
-          animepahe.Config.setCookies(cookieHeader);
-          
-          console.log(`Successfully imported ${parsedCookies.length} cookies from cookies.txt and injected into Config`);
-          return true;
-        } else {
-          console.warn('No cookies could be parsed from cookies.txt');
         }
       }
-    } catch (err) {
-      console.error('Failed to import cookies.txt:', err);
     }
+
+    if (latestCookies && latestCookies.length > 0) {
+      const cookieHeader = latestCookies.map(c => `${c.name}=${c.value}`).join('; ');
+      
+      // Only update if changed
+      if (animepahe.Config.cookies !== cookieHeader) {
+        animepahe.Config.setCookies(cookieHeader);
+        console.log(`[Cookies] Loaded ${latestCookies.length} cookies from ${source}`);
+      }
+      return true;
+    }
+  } catch (err) {
+    console.error('[Cookies] Failed to import cookies:', err.message);
   }
   return false;
+}
+
+function parseCookieString(raw) {
+  let parsedCookies = [];
+  // Check if JSON format
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const list = JSON.parse(raw);
+      return list.filter(c => c && c.name && c.value !== undefined);
+    } catch (e) {}
+  }
+
+  // Netscape format
+  if (raw.includes('\t') || raw.startsWith('#')) {
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const parts = trimmed.split('\t');
+      if (parts.length >= 7) {
+        parsedCookies.push({ name: parts[5], value: parts[6] });
+      }
+    }
+    if (parsedCookies.length > 0) return parsedCookies;
+  }
+
+  // Key-value format
+  let clean = raw;
+  if (clean.toLowerCase().startsWith('cookie:')) clean = clean.substring(7).trim();
+  if ((clean.startsWith("'") && clean.endsWith("'")) || (clean.startsWith('"') && clean.endsWith('"'))) clean = clean.slice(1, -1).trim();
+
+  return clean.split(';').map(part => {
+    const eqIndex = part.indexOf('=');
+    if (eqIndex === -1) return null;
+    return {
+      name: part.substring(0, eqIndex).trim(),
+      value: part.substring(eqIndex + 1).trim()
+    };
+  }).filter(Boolean);
 }
 
 // Initialize local cookies
 importLocalCookies();
 
 // --- START MONKEY PATCHES ---
+
+// Prevent Strategy 2 (Playwright) from firing and clearing our good cookies
+// since it often fails on ARM/Cloudflare anyway.
+animepahe.Animepahe.refreshCookies = async function() {
+  console.log('[MonkeyPatch] Blocking automatic refresh to preserve manual cookies.');
+  return false; 
+};
+
 // Problem 1: Serialize kwik.cx requests to avoid Cloudflare 1015 (Rate Limit)
-// Problem 3: Prevent Strategy 2 (Playwright) from firing aggressively on Strategy 1 failure
 const PlayModel = animepahe.models.PlayModel;
 const originalHybrid = PlayModel.processHybridOptimized;
 
@@ -185,14 +190,15 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api/search',    require('./routes/search'));
-app.use('/api/airing',    require('./routes/airing'));
-app.use('/api/series',    require('./routes/series'));
-app.use('/api/episodes',  require('./routes/episodes'));
-app.use('/api/stream',    require('./routes/stream'));
-app.use('/api/watchlist', require('./routes/watchlist'));
-app.use('/api/progress',  require('./routes/progress'));
-app.use('/api/admin',     require('./routes/admin'));
+app.use('/api/search',       require('./routes/search'));
+app.use('/api/airing',       require('./routes/airing'));
+app.use('/api/series',       require('./routes/series'));
+app.use('/api/episodes',     require('./routes/episodes'));
+app.use('/api/stream',       require('./routes/stream'));
+app.use('/api/image-proxy',  require('./routes/image'));
+app.use('/api/watchlist',    require('./routes/watchlist'));
+app.use('/api/progress',     require('./routes/progress'));
+app.use('/api/admin',        require('./routes/admin'));
 
 // Global error handler
 app.use((err, req, res, next) => {

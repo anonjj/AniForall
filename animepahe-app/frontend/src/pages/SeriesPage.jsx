@@ -15,6 +15,12 @@ import {
 } from '../api/client';
 import { CalendarIcon, TvIcon, StarIcon, PlayIcon } from '@heroicons/react/24/solid';
 
+function proxyImg(url) {
+  if (!url) return null;
+  if (url.startsWith('/api/')) return url;
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 export default function SeriesPage() {
   const { session } = useParams();
   const navigate = useNavigate();
@@ -60,7 +66,7 @@ export default function SeriesPage() {
         await addToWatchlist({
           session,
           title: seriesInfo.title,
-          poster: seriesInfo.poster,
+          poster: seriesInfo.image || seriesInfo.poster || seriesInfo.snapshot,
           status: newStatus
         });
       }
@@ -138,7 +144,7 @@ export default function SeriesPage() {
         {/* Banner Backdrop Blur */}
         <div className="absolute inset-0 z-0 opacity-20 pointer-events-none scale-105 select-none">
           <img
-            src={seriesInfo?.poster}
+            src={proxyImg(seriesInfo?.image)}
             alt=""
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover blur-[80px]"
@@ -156,7 +162,7 @@ export default function SeriesPage() {
           ) : (
             <div className="w-56 aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 self-center md:self-start">
               <img
-                src={seriesInfo?.poster}
+                src={proxyImg(seriesInfo?.image)}
                 alt={seriesInfo?.title}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"

@@ -9,11 +9,13 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
   const plyrRef  = useRef(null);
   const startAtRef  = useRef(startAt);
   const onEndedRef  = useRef(onEnded);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
 
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => { startAtRef.current = startAt; }, [startAt]);
   useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
+  useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
 
   // Expose getCurrentTime / getDuration to WatchPage via ref
   useImperativeHandle(ref, () => ({
@@ -94,7 +96,7 @@ const VideoPlayer = forwardRef(({ streamUrl, startAt = 0, onTimeUpdate, onEnded 
       }
 
       // ── 4. Progress / end events ───────────────────────────────────────────
-      const handleTimeUpdate = () => onTimeUpdate?.(plyrVideo.currentTime, plyrVideo.duration);
+      const handleTimeUpdate = () => onTimeUpdateRef.current?.(plyrVideo.currentTime, plyrVideo.duration);
       const handleEnded      = () => onEndedRef.current?.();
       
       const onPlay  = () => setIsPlaying(true);

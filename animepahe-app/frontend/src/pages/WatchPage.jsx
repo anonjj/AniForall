@@ -178,6 +178,8 @@ export default function WatchPage() {
 
   // Handle saving progress
   const saveWatchProgress = useCallback(async (currentTime, duration, isFinished = false) => {
+    if (!seriesInfo) return; // Don't save if info isn't loaded yet
+    
     try {
       const position = Math.floor(currentTime);
       const isCompleted = isFinished || (duration > 0 && currentTime / duration > 0.85);
@@ -187,8 +189,8 @@ export default function WatchPage() {
         episode_num: currentEpNum,
         ep_session: epSession,
         anime_session: epSession, // Store episode session in anime_session per Issue #4
-        title: seriesInfo?.title,
-        poster: seriesInfo?.poster,
+        title: seriesInfo.title,
+        poster: seriesInfo.image || seriesInfo.poster || seriesInfo.snapshot,
         position_sec: position,
         completed: isCompleted ? 1 : 0
       });
