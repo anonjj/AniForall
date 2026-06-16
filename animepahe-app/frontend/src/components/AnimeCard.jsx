@@ -1,70 +1,60 @@
 import { Link } from 'react-router-dom';
-import { CalendarIcon, TvIcon } from '@heroicons/react/24/outline';
+
+function proxyImg(url) {
+  if (!url) return null;
+  if (url.startsWith('/api/')) return url;
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}
 
 export default function AnimeCard({ anime }) {
-  const { session, title, poster, type, episodes, status, year } = anime;
+  const { session, title, poster, image, snapshot, type, episodes, status } = anime;
+  const displayPoster = proxyImg(poster || image || snapshot);
 
-  // Status indicator colors
-  const statusColors = {
-    Airing: 'bg-emerald-500 shadow-emerald-500/20',
-    Completed: 'bg-blue-500 shadow-blue-500/20',
-    default: 'bg-zinc-500 shadow-zinc-500/20'
-  };
-
-  const statusColor = statusColors[status] || statusColors.default;
+  let episodeLabel = null;
+  if (episodes) {
+    episodeLabel = `${episodes} eps`;
+  } else if (status) {
+    const match = status.match(/Episode\s+(\d+)/i);
+    if (match) episodeLabel = `EP ${match[1]}`;
+  }
 
   return (
-    <Link 
-      to={`/series/${session}`}
-      className="group relative flex flex-col bg-brandSurface border border-white/5 rounded-2xl overflow-hidden hover:border-brandPurple/30 hover:-translate-y-1 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-brandPurple/5 animate-fadeIn"
-    >
-      {/* Poster Image */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-brandSurfaceMuted">
+    <Link to={`/series/${session}`} className="group relative flex flex-col w-full animate-fadeIn">
+      {/* Poster */}
+      <div className="relative aspect-[2/3] w-full rounded-lg overflow-hidden bg-brandSurfaceMuted shadow-md group-hover:shadow-xl group-hover:shadow-black/50 transition-all duration-300">
         <img
-          src={poster || 'https://placehold.co/300x400/15161e/ffffff?text=No+Poster'}
+          src={displayPoster || 'https://placehold.co/300x450/15161e/ffffff?text=?'}
           alt={title}
           loading="lazy"
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
         />
-        
-        {/* Shadow Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-        {/* Floating Badges */}
-        <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
-          {episodes && (
-            <span className="px-2.5 py-1 text-xs font-bold bg-black/70 text-zinc-100 rounded-lg backdrop-blur-md border border-white/10">
-              {episodes} {episodes === 1 ? 'EP' : 'EPS'}
-            </span>
-          )}
-          <span className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-black/70 text-zinc-100 rounded-lg backdrop-blur-md border border-white/10`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${statusColor} animate-pulse`} />
-            {status}
+        {/* Bottom gradient for readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+        {/* Type badge — top-left, only for real type values */}
+        {type && (
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] font-extrabold bg-red-600 text-white rounded-[3px] leading-none tracking-wider uppercase shadow">
+            {type.toUpperCase()}
           </span>
-        </div>
+        )}
+
+        {/* Episode label — bottom center */}
+        {episodeLabel && (
+          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-black/80 text-zinc-100 rounded backdrop-blur-[2px] border border-white/10">
+            <svg className="w-2.5 h-2.5 fill-zinc-400 shrink-0" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            {episodeLabel}
+          </div>
+        )}
       </div>
 
-      {/* Info Content */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
-        <h3 className="font-semibold text-white group-hover:text-brandPurple transition-colors line-clamp-2 text-sm leading-snug">
+      {/* Title below poster */}
+      <div className="mt-2">
+        <h3 className="text-xs font-medium text-zinc-300 group-hover:text-white transition-colors leading-snug line-clamp-2">
           {title}
         </h3>
-        
-        <div className="flex items-center gap-4 mt-3 text-xs text-zinc-500">
-          {type && (
-            <span className="flex items-center gap-1">
-              <TvIcon className="w-3.5 h-3.5" />
-              {type}
-            </span>
-          )}
-          {year && (
-            <span className="flex items-center gap-1">
-              <CalendarIcon className="w-3.5 h-3.5" />
-              {year}
-            </span>
-          )}
-        </div>
       </div>
     </Link>
   );
