@@ -8,6 +8,17 @@ CREATE TABLE IF NOT EXISTS watchlist (
   added_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS anime_metadata (
+  session       TEXT PRIMARY KEY,
+  anilist_id    INTEGER,
+  cover_image   TEXT,
+  banner_image  TEXT,
+  accent_color  TEXT,
+  score         INTEGER,
+  genres        TEXT,
+  fetched_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS progress (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   series_session TEXT NOT NULL,

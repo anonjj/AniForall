@@ -1,30 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import SearchBar from '../components/SearchBar';
 import AnimeCard from '../components/AnimeCard';
 import SkeletonCard from '../components/SkeletonCard';
 import ErrorState from '../components/ErrorState';
 import EmptyState from '../components/EmptyState';
+import HeroCarousel from '../components/HeroCarousel';
+import SectionRail from '../components/SectionRail';
+import AmbientBackground from '../components/AmbientBackground';
 import useSearch from '../hooks/useSearch';
+import useAmbientColor from '../hooks/useAmbientColor';
 import { getWatchlist, getProgressSummary, getAiring } from '../api/client';
-import { BookmarkIcon, PlayCircleIcon, FireIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { BookmarkIcon, PlayCircleIcon, FireIcon, ClockIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/solid';
 
 function proxyImg(url) {
   if (!url) return null;
   if (url.startsWith('/api/')) return url;
   return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-}
-
-function ShelfSection({ title, icon: Icon, iconColor, children, empty }) {
-  return (
-    <section className="space-y-4 animate-fadeIn">
-      <div className="flex items-center gap-2.5 pb-2.5 border-b border-white/5">
-        <Icon className={`w-5 h-5 ${iconColor}`} />
-        <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
-      </div>
-      {children}
-    </section>
-  );
 }
 
 export default function Home() {
@@ -36,6 +28,10 @@ export default function Home() {
   const [searchHistory, setSearchHistory] = useState([]);
   const [loadingShelves, setLoadingShelves] = useState(true);
   const [shelfError, setShelfError] = useState(null);
+  const [activeHeroImage, setActiveHeroImage] = useState(null);
+
+  // Ambient bloom driven by the active hero image (same-origin via proxy = canvas-safe)
+  const ambientColor = useAmbientColor(activeHeroImage);
 
   useEffect(() => {
     async function loadData() {
@@ -78,53 +74,53 @@ export default function Home() {
     setSearchHistory([]);
   };
 
-  // Build hero background from first few airing items
-  const heroBg = airingAnime.slice(0, 5);
+  const handleSurpriseMe = useCallback(() => {
+    if (!airingAnime.length) return;
+    const pick = airingAnime[Math.floor(Math.random() * airingAnime.length)];
+    window.location.href = `/series/${pick.session}`;
+  }, [airingAnime]);
+
+  const cardWidth = 'shrink-0 w-36 md:w-40';
 
   return (
-    <div className="min-h-screen bg-brandBg pb-16">
+    <div className="min-h-screen bg-brandBg pb-16 bg-noise">
+      {/* Ambient bloom — fixed full-page color tint driven by active hero */}
+      <AmbientBackground color={ambientColor} />
+
       <Navbar />
 
-      {/* ── Hero Banner ── */}
-      <section className="relative w-full h-[280px] md:h-[360px] overflow-hidden">
-        {/* Background collage */}
-        {heroBg.length > 0 ? (
-          <div className="absolute inset-0 flex">
-            {heroBg.map((anime, i) => (
-              <img
-                key={i}
-                src={proxyImg(anime.image)}
-                alt=""
-                className="flex-1 h-full object-cover"
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-brandSurface to-brandBg" />
-        )}
+      {/* ── Hero Carousel ── */}
+      {!query.trim() && (
+        <>
+          {airingAnime.length > 0 ? (
+            <HeroCarousel
+              anime={airingAnime.slice(0, 5)}
+              onActiveImageChange={setActiveHeroImage}
+            />
+          ) : (
+            <div className="w-full h-[380px] md:h-[500px] bg-gradient-to-br from-brandSurface to-brandBg flex flex-col items-center justify-center gap-5 px-6">
+              <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg text-center">
+                Your Anime, Your <span className="text-gradient">Way</span>
+              </h1>
+              <p className="text-zinc-300 text-sm drop-shadow text-center">
+                Search, stream, and track your collection.
+              </p>
+              <div className="w-full max-w-2xl">
+                <SearchBar query={query} setQuery={setQuery} loading={loading} />
+              </div>
+            </div>
+          )}
 
-        {/* Dark overlays */}
-        <div className="absolute inset-0 bg-black/55" />
-        <div className="absolute inset-0 bg-gradient-to-b from-brandBg/10 via-transparent to-brandBg" />
-
-        {/* Hero content */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center px-6 gap-5">
-          <div className="text-center">
-            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">
-              Your Anime, Your <span className="text-gradient">Way</span>
-            </h1>
-            <p className="text-zinc-300 text-sm mt-2 drop-shadow">
-              Search, stream, and track your collection.
-            </p>
-          </div>
-
-          <div className="w-full max-w-2xl">
-            <SearchBar query={query} setQuery={setQuery} loading={loading} />
-          </div>
+          {/* Search bar below hero */}
+          {airingAnime.length > 0 && (
+            <div className="max-w-2xl mx-auto px-6 -mt-6 relative z-10">
+              <SearchBar query={query} setQuery={setQuery} loading={loading} />
+            </div>
+          )}
 
           {/* Search history pills */}
           {!query && searchHistory.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-2 animate-fadeIn">
+            <div className="max-w-2xl mx-auto px-6 mt-3 flex flex-wrap items-center justify-center gap-2 animate-fadeIn">
               <div className="flex items-center gap-1.5 text-zinc-400">
                 <ClockIcon className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-bold uppercase tracking-wider">Recent:</span>
@@ -155,8 +151,8 @@ export default function Home() {
               )}
             </div>
           )}
-        </div>
-      </section>
+        </>
+      )}
 
       {/* ── Content ── */}
       <main className="max-w-7xl mx-auto px-6 md:px-12 mt-10 space-y-12">
@@ -165,42 +161,55 @@ export default function Home() {
 
             {/* Continue Watching */}
             {continueWatching.length > 0 && (
-              <ShelfSection title="Continue Watching" icon={PlayCircleIcon} iconColor="text-brandPurple">
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
-                  {continueWatching.map((item) => (
-                    <div key={item.series_session} className="shrink-0 w-36 md:w-40">
-                      <AnimeCard
-                        anime={{
-                          session: item.series_session,
-                          title: item.title,
-                          poster: item.poster,
-                          status: `Episode ${item.episode_num}`,
-                          episodes: null,
-                          type: null,
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </ShelfSection>
+              <SectionRail title="Continue Watching" icon={PlayCircleIcon} iconColor="text-brandPurple">
+                {continueWatching.map((item) => (
+                  <div key={item.series_session} className={cardWidth}>
+                    <AnimeCard
+                      anime={{
+                        session: item.series_session,
+                        title: item.title,
+                        poster: item.poster,
+                        status: `Episode ${item.episode_num}`,
+                        episodes: null,
+                        type: null,
+                      }}
+                    />
+                  </div>
+                ))}
+              </SectionRail>
             )}
 
             {/* Latest Releases */}
-            <ShelfSection title="Latest Releases" icon={FireIcon} iconColor="text-orange-500">
-              {shelfError ? (
-                <ErrorState message={shelfError} onRetry={() => window.location.reload()} />
-              ) : loadingShelves ? (
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
-                  {[...Array(8)].map((_, i) => (
-                    <div key={i} className="shrink-0 w-36 md:w-40">
-                      <SkeletonCard />
-                    </div>
-                  ))}
-                </div>
-              ) : airingAnime.length > 0 ? (
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
-                  {airingAnime.map((anime) => (
-                    <div key={anime.session} className="shrink-0 w-36 md:w-40">
+            <SectionRail
+              title="Latest Releases"
+              icon={FireIcon}
+              iconColor="text-orange-500"
+              action={
+                airingAnime.length > 0 ? (
+                  <button
+                    onClick={handleSurpriseMe}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/8 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-brandPurple outline-none"
+                    title="Go to a random airing anime"
+                  >
+                    <SparklesIcon className="w-3.5 h-3.5" />
+                    Surprise Me
+                  </button>
+                ) : null
+              }
+              empty={
+                shelfError ? (
+                  <ErrorState message={shelfError} onRetry={() => window.location.reload()} />
+                ) : airingAnime.length === 0 && !loadingShelves ? (
+                  <EmptyState message="No releases found" description="Could not load latest episode data." />
+                ) : null
+              }
+            >
+              {loadingShelves
+                ? [...Array(8)].map((_, i) => (
+                    <div key={i} className={cardWidth}><SkeletonCard /></div>
+                  ))
+                : airingAnime.map((anime) => (
+                    <div key={anime.session} className={cardWidth}>
                       <AnimeCard
                         anime={{
                           session: anime.session,
@@ -213,26 +222,29 @@ export default function Home() {
                       />
                     </div>
                   ))}
-                </div>
-              ) : (
-                <EmptyState message="No releases found" description="Could not load latest episode data." />
-              )}
-            </ShelfSection>
+            </SectionRail>
 
-            {/* Watchlist */}
-            <ShelfSection title="Your Watchlist" icon={BookmarkIcon} iconColor="text-brandPurple">
-              {loadingShelves ? (
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="shrink-0 w-36 md:w-40">
-                      <SkeletonCard />
-                    </div>
-                  ))}
-                </div>
-              ) : watchlist.length > 0 ? (
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 md:-mx-12 md:px-12 scrollbar-hide">
-                  {watchlist.map((anime) => (
-                    <div key={anime.session} className="shrink-0 w-36 md:w-40">
+            {/* Your Watchlist */}
+            <SectionRail
+              title="Your Watchlist"
+              icon={BookmarkIcon}
+              iconColor="text-brandPurple"
+              empty={
+                !loadingShelves && watchlist.length === 0 ? (
+                  <EmptyState
+                    message="Your watchlist is empty"
+                    description="Search for anime above and add them to your watchlist."
+                    icon={BookmarkIcon}
+                  />
+                ) : null
+              }
+            >
+              {loadingShelves
+                ? [...Array(6)].map((_, i) => (
+                    <div key={i} className={cardWidth}><SkeletonCard /></div>
+                  ))
+                : watchlist.map((anime) => (
+                    <div key={anime.session} className={cardWidth}>
                       <AnimeCard
                         anime={{
                           session: anime.session,
@@ -245,15 +257,7 @@ export default function Home() {
                       />
                     </div>
                   ))}
-                </div>
-              ) : (
-                <EmptyState
-                  message="Your watchlist is empty"
-                  description="Search for anime above and add them to your watchlist."
-                  icon={BookmarkIcon}
-                />
-              )}
-            </ShelfSection>
+            </SectionRail>
           </div>
         ) : (
           /* Search Results */

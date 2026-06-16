@@ -1,4 +1,8 @@
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { useState } from 'react';
+import useAnimeMetadata from '../hooks/useAnimeMetadata';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 function proxyImg(url) {
   if (!url) return null;
@@ -6,9 +10,17 @@ function proxyImg(url) {
   return `/api/image-proxy?url=${encodeURIComponent(url)}`;
 }
 
-export default function AnimeCard({ anime }) {
+export default function AnimeCard({ anime, rank }) {
   const { session, title, poster, image, snapshot, type, episodes, status } = anime;
   const displayPoster = proxyImg(poster || image || snapshot);
+  const [hovered, setHovered] = useState(false);
+
+  const { metadata, ref } = useAnimeMetadata(session, title);
+  const reducedMotion = useReducedMotion();
+  const score = metadata?.score;
+  const genreList = metadata?.genres
+    ? (Array.isArray(metadata.genres) ? metadata.genres : metadata.genres.split(',')).slice(0, 2)
+    : [];
 
   let episodeLabel = null;
   if (episodes) {
@@ -19,28 +31,102 @@ export default function AnimeCard({ anime }) {
   }
 
   return (
-    <Link to={`/series/${session}`} className="group relative flex flex-col w-full animate-fadeIn">
+    <Link
+      ref={ref}
+      to={`/series/${session}`}
+      className="group relative flex flex-col w-full animate-fadeIn outline-none focus-visible:ring-2 focus-visible:ring-brandPurple focus-visible:ring-offset-2 focus-visible:ring-offset-brandBg rounded-lg"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {/* Poster */}
-      <div className="relative aspect-[2/3] w-full rounded-lg overflow-hidden bg-brandSurfaceMuted shadow-md group-hover:shadow-xl group-hover:shadow-black/50 transition-all duration-300">
+      <motion.div
+        animate={{ scale: !reducedMotion && hovered ? 1.04 : 1 }}
+        transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className="relative aspect-[2/3] w-full rounded-lg overflow-hidden bg-brandSurfaceMuted shadow-md"
+        style={{
+          boxShadow: hovered
+            ? '0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.4)'
+            : undefined,
+        }}
+      >
         <img
           src={displayPoster || 'https://placehold.co/300x450/15161e/ffffff?text=?'}
           alt={title}
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
+          className="w-full h-full object-cover"
         />
 
-        {/* Bottom gradient for readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+        {/* Resting gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-        {/* Type badge — top-left, only for real type values */}
+        {/* Type badge */}
         {type && (
-          <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] font-extrabold bg-red-600 text-white rounded-[3px] leading-none tracking-wider uppercase shadow">
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] font-extrabold bg-red-600 text-white rounded-[3px] leading-none tracking-wider uppercase shadow z-10">
             {type.toUpperCase()}
           </span>
         )}
 
-        {/* Episode label — bottom center */}
-        {episodeLabel && (
+        {/* Rank numeral */}
+        {rank != null && (
+          <span
+            aria-hidden="true"
+            className="absolute bottom-0 left-1 leading-none select-none pointer-events-none"
+            style={{
+              fontFamily: "'Bricolage Grotesque', 'Space Grotesk', sans-serif",
+              fontSize: '4.5rem',
+              fontWeight: 900,
+              color: 'rgba(255,255,255,0.12)',
+              lineHeight: 1,
+            }}
+          >
+            {String(rank).padStart(2, '0')}
+          </span>
+        )}
+
+        {/* Hover reveal panel */}
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="absolute bottom-0 left-0 right-0 p-2.5 bg-gradient-to-t from-black/95 via-black/80 to-transparent"
+            >
+              {score && (
+                <div className="flex items-center gap-1 mb-1">
+                  <svg className="w-3 h-3 fill-brandAmber shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  <span className="text-[10px] font-bold text-brandAmber">{(score / 10).toFixed(1)}</span>
+                </div>
+              )}
+              {episodeLabel && (
+                <div className="flex items-center gap-1 mb-1.5">
+                  <svg className="w-2.5 h-2.5 fill-zinc-400 shrink-0" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                  <span className="text-[10px] font-bold text-zinc-200">{episodeLabel}</span>
+                </div>
+              )}
+              {genreList.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {genreList.map((g) => (
+                    <span
+                      key={g}
+                      className="px-1.5 py-0.5 text-[8px] font-semibold bg-brandPurple/20 text-brandPurple rounded-full border border-brandPurple/20 leading-none"
+                    >
+                      {g.trim()}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Episode label when not hovered */}
+        {!hovered && episodeLabel && (
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-black/80 text-zinc-100 rounded backdrop-blur-[2px] border border-white/10">
             <svg className="w-2.5 h-2.5 fill-zinc-400 shrink-0" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z"/>
@@ -48,7 +134,7 @@ export default function AnimeCard({ anime }) {
             {episodeLabel}
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Title below poster */}
       <div className="mt-2">
